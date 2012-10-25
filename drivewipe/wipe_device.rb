@@ -3,11 +3,97 @@
 
 # Requires ubuntu packages:
 # scsitools ruby-open4
+require 'cgi'
+require 'net/http'
 require 'open3'
 require 'open4'
 require 'optparse'
+require 'uri'
 
 options = {:dummy => false}
+
+module Multipart
+  VERSION = "1.0.0" unless const_defined?(:VERSION)
+
+  # Formats a given hash as a multipart form post
+  # If a hash value responds to :string or :read messages, then it is
+  # interpreted as a file and processed accordingly; otherwise, it is assumed
+  # to be a string
+  class Post
+    USERAGENT = "Multipart::Post v#{VERSION}" unless const_defined?(:USERAGENT)
+
+    unless const_defined?(:BOUNDARY)
+      BOUNDARY = "0123456789ABLEWASIEREISAWELBA9876543210" 
+    end
+
+    unless const_defined?(:CONTENT_TYPE)
+      CONTENT_TYPE = "multipart/form-data; boundary=#{ BOUNDARY }"
+    end
+
+    HEADER = {
+      "Content-Type" => CONTENT_TYPE,
+      "User-Agent" => USERAGENT
+    } unless const_defined?(:HEADER)
+
+    def self.prepare_query(params)
+      fp = []
+
+      params.each do |k, v|
+        # Are we trying to make a file parameter?
+        if v.respond_to?(:path) and v.respond_to?(:read) then
+          fp.push(FileParam.new(k, v))
+        # We must be trying to make a regular parameter
+        else
+          fp.push(StringParam.new(k, v))
+        end
+      end
+
+      # Assemble the request body using the special multipart format
+      query = fp.collect {|p|
+        "--" + BOUNDARY + "\r\n" + p.to_multipart
+      }.join("")  + "--" + BOUNDARY + "--"
+      
+      return query, HEADER
+    end
+  end
+
+  private
+
+  # Formats a basic string key/value pair for inclusion with a multipart post
+  class StringParam
+    attr_accessor :k, :v
+
+    def initialize(k, v)
+      @k = k
+      @v = v
+    end
+
+    def to_multipart
+      return "Content-Disposition: form-data; " +
+        "name=\"#{CGI::escape(k)}\"\r\n\r\n#{v}\r\n"
+    end
+  end
+
+  # Formats the contents of a file or string for inclusion with a multipart
+  # form post
+  class FileParam
+    attr_accessor :k, :filename, :content
+
+    def initialize(k, f)
+      @k = k
+      @filename = f.path
+      @content = f.read
+    end
+
+    def to_multipart
+      # If we can tell the possible mime-type from the filename, use the
+      # first in the list; otherwise, use "application/octet-stream"
+      return "Content-Disposition: form-data; " +
+        "name=\"#{CGI::escape(k)}\"; filename=\"#{ filename }\"\r\n" +
+        "Content-Type: application/octet-stream\r\n\r\n#{ content }\r\n"
+    end
+  end
+end
 
 class Device
   attr_reader :model, :name, :serial, :size
@@ -339,6 +425,21 @@ class SmartSelfTest
   end
 end
 
+class LogString
+  def initialize(name, content)
+    @name = name
+    @content = content
+  end
+
+  def path
+    return @name
+  end
+
+  def read
+    return @content
+  end
+end
+
 OptionParser.new do |opts|
   opts.banner = "Usage: wipe_device.rb [--dummy] sda"
 
@@ -351,15 +452,14 @@ device = Device.new(ARGV[0])
 
 puts("Device: m'#{device.model}' s'#{device.serial}' z'#{device.size}'")
 
-def run(dev, klass, header, options)
-  puts("Test: #{header}")
+def run(dev, klass, count, options)
   test = nil
   if options[:dummy] and klass == BadBlocksTest
     test = klass.new(dev, 200000)
   else
     test = klass.new(dev)
   end
-
+  puts("Test: n'#{test.description}' s'#{test.code}' c'#{count}'")
   progress = test.start()
   print("Progress: %5.2f\%\n" % 0)
   while progress < 1
@@ -371,10 +471,29 @@ def run(dev, klass, header, options)
   result = test.finish()
   puts("Result: p'#{result.passed}' s'#{result.status.exitstatus}'" +
        " start'#{result.start_time}' finish'#{result.finish_time}'")
+
+  url = URI.parse('http://build.shop.lan/scripts/wipe.cgi')
+  data, headers = 
+    Multipart::Post.prepare_query('device' => dev.path,
+                                  'device_model' => dev.model,
+                                  'device_serial' => dev.serial,
+                                  'name' => test.description,
+                                  'code' => test.code,
+                                  'count' => count,
+                                  'result' => result.passed.to_s,
+                                  'status' => result.status.exitstatus.to_s,
+                                  'start' => result.start_time.to_s,
+                                  'finish' => result.finish_time.to_s,
+                                  'log_out' => LogString.new('log_out.txt', result.out),
+                                  'log_err' => LogString.new('log_err.txt', result.err))
+  http = Net::HTTP.new(url.host, url.port)
+  res = http.start do |con|
+    con.post(url.path, data, headers)
+  end
   return result
 end
 
-result = run(device, SmartTest, "n'SMART One' s'SM' c'1/?'", options)
+result = run(device, SmartTest, '1/?', options)
 
 if result.cmd_line?
   raise "SMART Command line error"
@@ -384,19 +503,19 @@ if result.identify? or result.checksum?
   # Assume the device is not smart capable
   puts("Plan: SM, BB, PT, FM")
 
-  result = run(device, BadBlocksTest, "n'Badblocks' s'BB' c'2/4'", options)
+  result = run(device, BadBlocksTest, '2/4', options)
   if not result.passed
     puts("Complete: d'Unwiped' r'Badblock failure'")
     exit(0)
   end
   
-  result = run(device, PartitionTest, "n'Partitioning' s'PT' c'3/4'", options)
+  result = run(device, PartitionTest, '3/4', options)
   if not result.passed
     puts("Complete: d'Wiped' r'Partitioning failure'")
     exit(0)
   end
 
-  result = run(device, FormatTest, "n'Formatting' s'FM' c'4/4'", options)
+  result = run(device, FormatTest, '4/4', options)
   if result.passed
     puts("Complete: d'Wiped' r'No errors'")
     exit(0)
@@ -417,7 +536,7 @@ else
   puts("Plan: SM, ST, BB, SM, PT, FM")
 
   if not options[:dummy]
-    result = run(device, SmartSelfTest, "n'SMART SelfTest' s'ST' c'2/6'", options)
+    result = run(device, SmartSelfTest, '2/6', options)
     if (result.failing? or result.prefail? or
         result.past_prefail? or result.self_log?)
       # Device failed
@@ -426,13 +545,13 @@ else
     end
   end
 
-  result = run(device, BadBlocksTest, "n'Badblocks' s'BB' c'3/6'", options)
+  result = run(device, BadBlocksTest, '3/6', options)
   if not result.passed
     puts("Complete: d'Unwiped' r'Badblock failure'")
     exit(0)
   end
   
-  result = run(device, SmartTest, "n'SMART Two' s'SM' c'4/6'", options)
+  result = run(device, SmartTest, '4/6', options)
   if (result.failing? or result.prefail? or
       result.past_prefail? or result.self_log?)
     # Device failed
@@ -440,13 +559,13 @@ else
     exit(0)
   end
 
-  result = run(device, PartitionTest, "n'Partitioning' s'PT' c'5/6'", options)
+  result = run(device, PartitionTest, '5/6', options)
   if not result.passed
     puts("Complete: d'Wiped' r'Partitioning failure'")
     exit(0)
   end
 
-  result = run(device, FormatTest, "n'Formatting' s'FM' c'6/6'", options)
+  result = run(device, FormatTest, '6/6', options)
   if result.passed
     puts("Complete: d'Wiped' r'No errors'")
     exit(0)
