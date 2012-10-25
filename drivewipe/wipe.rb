@@ -141,9 +141,11 @@ class Device
         @window.clrtobot()
       end
     when 'Result'
-      if m = value.match(/^: p'(true|false)' s'(\d+)'/)
+      if m = value.match(/^: p'(true|false)' s'(\d+)' start'([^']+)' finish'([^']+)'/)
         @current_test['passed'] = (m[1] == 'true')
         @current_test['status'] = m[2]
+        @current_test['start_time'] = m[3]
+        @current_test['finish_time'] = m[4]
         update_test_plan
       end
     when 'Plan'

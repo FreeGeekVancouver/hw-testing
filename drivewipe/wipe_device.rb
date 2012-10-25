@@ -326,7 +326,8 @@ def run(dev, test, header)
     sleep(1)
   end
   result = test.finish()
-  puts("Result: p'#{result.passed}' s'#{result.status.exitstatus}'")
+  puts("Result: p'#{result.passed}' s'#{result.status.exitstatus}'" +
+       " start'#{result.start_time}' finish'#{result.finish_time}'")
   return result
 end
 
