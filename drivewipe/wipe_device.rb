@@ -5,6 +5,9 @@
 # scsitools ruby-open4
 require 'open3'
 require 'open4'
+require 'optparse'
+
+options = {:dummy => false}
 
 class Device
   attr_reader :model, :name, :serial, :size
@@ -190,13 +193,18 @@ class BadBlocksTest < BaseTest
   @description = 'Destructive badblocks'
   @code        = 'BB'
 
-  def initialize(device)
-    super
+  def initialize(device, size=nil)
+    super(device)
+    @size = size
     @progress = 0
   end
 
   def start
-    super("/sbin/badblocks", '-t', 'random', '-t', '0', '-ws', @device.path)
+    args = ["/sbin/badblocks", '-t', 'random', '-t', '0', '-ws', @device.path]
+    if not @size.nil?
+      args << @size.to_s
+    end
+    super(*args)
   end
 
   def continue
@@ -310,13 +318,27 @@ class SmartSelfTest
   end
 end
 
+OptionParser.new do |opts|
+  opts.banner = "Usage: wipe_device.rb [--dummy] sda"
+
+  opts.on('--dummy', 'Skip the self test and wipe 200 MiB only') do |v|
+    options[:dummy] = v
+  end
+end.parse!
+
 device = Device.new(ARGV[0])
 
 puts("Device: m'#{device.model}' s'#{device.serial}' z'#{device.size}'")
 
-def run(dev, test, header)
+def run(dev, klass, header, options)
   puts("Test: #{header}")
-  test = test.new(dev)
+  test = nil
+  if options[:dummy] and klass == BadBlocksTest
+    test = klass.new(dev, 200000)
+  else
+    test = klass.new(dev)
+  end
+
   progress = test.start()
   print("Progress: %5.2f\%\n" % 0)
   while progress < 1
@@ -331,7 +353,7 @@ def run(dev, test, header)
   return result
 end
 
-result = run(device, SmartTest, "n'SMART One' s'SM' c'1/?'")
+result = run(device, SmartTest, "n'SMART One' s'SM' c'1/?'", options)
 
 if result.cmd_line?
   raise "SMART Command line error"
@@ -341,19 +363,19 @@ if result.identify? or result.checksum?
   # Assume the device is not smart capable
   puts("Plan: SM, BB, PT, FM")
 
-  result = run(device, BadBlocksTest, "n'Badblocks' s'BB' c'2/4'")
+  result = run(device, BadBlocksTest, "n'Badblocks' s'BB' c'2/4'", options)
   if not result.passed
     puts("Complete: d'Unwiped' r'Badblock failure'")
     exit(0)
   end
   
-  result = run(device, PartitionTest, "n'Partitioning' s'PT' c'3/4'")
+  result = run(device, PartitionTest, "n'Partitioning' s'PT' c'3/4'", options)
   if not result.passed
     puts("Complete: d'Wiped' r'Partitioning failure'")
     exit(0)
   end
 
-  result = run(device, FormatTest, "n'Formatting' s'FM' c'4/4'")
+  result = run(device, FormatTest, "n'Formatting' s'FM' c'4/4'", options)
   if result.passed
     puts("Complete: d'Wiped' r'No errors'")
     exit(0)
@@ -373,21 +395,23 @@ else
 
   puts("Plan: SM, ST, BB, SM, PT, FM")
 
-  result = run(device, SmartSelfTest, "n'SMART SelfTest' s'ST' c'2/6'")
-  if (result.failing? or result.prefail? or
-      result.past_prefail? or result.self_log?)
-    # Device failed
-    puts("Complete: d'Unwiped' r'SMART Self-test Failure'")
-    exit(0)
+  if not options[:dummy]
+    result = run(device, SmartSelfTest, "n'SMART SelfTest' s'ST' c'2/6'", options)
+    if (result.failing? or result.prefail? or
+        result.past_prefail? or result.self_log?)
+      # Device failed
+      puts("Complete: d'Unwiped' r'SMART Self-test Failure'")
+      exit(0)
+    end
   end
 
-  result = run(device, BadBlocksTest, "n'Badblocks' s'BB' c'3/6'")
+  result = run(device, BadBlocksTest, "n'Badblocks' s'BB' c'3/6'", options)
   if not result.passed
     puts("Complete: d'Unwiped' r'Badblock failure'")
     exit(0)
   end
   
-  result = run(device, SmartTest, "n'SMART Two' s'SM' c'4/6'")
+  result = run(device, SmartTest, "n'SMART Two' s'SM' c'4/6'", options)
   if (result.failing? or result.prefail? or
       result.past_prefail? or result.self_log?)
     # Device failed
@@ -395,13 +419,13 @@ else
     exit(0)
   end
 
-  result = run(device, PartitionTest, "n'Partitioning' s'PT' c'5/6'")
+  result = run(device, PartitionTest, "n'Partitioning' s'PT' c'5/6'", options)
   if not result.passed
     puts("Complete: d'Wiped' r'Partitioning failure'")
     exit(0)
   end
 
-  result = run(device, FormatTest, "n'Formatting' s'FM' c'6/6'")
+  result = run(device, FormatTest, "n'Formatting' s'FM' c'6/6'", options)
   if result.passed
     puts("Complete: d'Wiped' r'No errors'")
     exit(0)
