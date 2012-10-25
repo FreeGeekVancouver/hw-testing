@@ -339,8 +339,29 @@ puts("Result: p'#{result.passed}' s'#{result.status.exitstatus}'")
 
 if result.identify? or result.checksum?
   # Assume the device is not smart capable
-  puts("Complete: d'Unwiped' r'Doesnt support SMART'")
-  exit(0)
+  puts("Plan: SM, BB, PT, FM")
+
+  result = run(device, BadBlocksTest, "n'Badblocks' s'BB' c'2/4'")
+  puts("Result: r'#{result.passed}' s'#{result.status.exitstatus}'")
+  if not result.passed
+    puts("Complete: d'Unwiped' r'Badblock failure'")
+    exit(0)
+  end
+  
+  result = run(device, PartitionTest, "n'Partitioning' s'PT' c'3/4'")
+  if not result.passed
+    puts("Complete: d'Wiped' r'Partitioning failure'")
+    exit(0)
+  end
+
+  result = run(device, FormatTest, "n'Formatting' s'FM' c'4/4'")
+  if result.passed
+    puts("Complete: d'Wiped' r'No errors'")
+    exit(0)
+  else
+    puts("Complete: d'Wiped' r'Formatting failure'")
+    exit(0)
+  end
 else
   # The device is SMART capable, test it as such
   
