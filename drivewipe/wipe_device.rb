@@ -375,6 +375,17 @@ end
 class SmartSelfTest
   @description = 'SMART short self-test'
   @code        = 'ST'
+  class << self
+    attr_reader :code, :description
+  end
+
+  def code
+    self.class.code
+  end
+
+  def description
+    self.class.description
+  end
 
   def initialize(device)
     @device = device
