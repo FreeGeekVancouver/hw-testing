@@ -326,6 +326,7 @@ def run(dev, test, header)
     sleep(1)
   end
   result = test.finish()
+  puts("Result: p'#{result.passed}' s'#{result.status.exitstatus}'")
   return result
 end
 
@@ -335,14 +336,11 @@ if result.cmd_line?
   raise "SMART Command line error"
 end
 
-puts("Result: p'#{result.passed}' s'#{result.status.exitstatus}'")
-
 if result.identify? or result.checksum?
   # Assume the device is not smart capable
   puts("Plan: SM, BB, PT, FM")
 
   result = run(device, BadBlocksTest, "n'Badblocks' s'BB' c'2/4'")
-  puts("Result: r'#{result.passed}' s'#{result.status.exitstatus}'")
   if not result.passed
     puts("Complete: d'Unwiped' r'Badblock failure'")
     exit(0)
@@ -375,7 +373,6 @@ else
   puts("Plan: SM, ST, BB, SM, PT, FM")
 
   result = run(device, SmartSelfTest, "n'SMART SelfTest' s'ST' c'2/6'")
-  puts("Result: r'#{result.passed}' s'#{result.status.exitstatus}'")
   if (result.failing? or result.prefail? or
       result.past_prefail? or result.self_log?)
     # Device failed
@@ -384,14 +381,12 @@ else
   end
 
   result = run(device, BadBlocksTest, "n'Badblocks' s'BB' c'3/6'")
-  puts("Result: r'#{result.passed}' s'#{result.status.exitstatus}'")
   if not result.passed
     puts("Complete: d'Unwiped' r'Badblock failure'")
     exit(0)
   end
   
   result = run(device, SmartTest, "n'SMART Two' s'SM' c'4/6'")
-  puts("Result: r'#{result.passed}' s'#{result.status.exitstatus}'")
   if (result.failing? or result.prefail? or
       result.past_prefail? or result.self_log?)
     # Device failed
