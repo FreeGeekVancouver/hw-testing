@@ -10,7 +10,10 @@ require 'open4'
 require 'optparse'
 require 'uri'
 
-options = {:dummy => false}
+options = {
+  :dummy => false,
+  :runid => "#{Time.now}-#{Process.pid}"
+}
 
 module Multipart
   VERSION = "1.0.0" unless const_defined?(:VERSION)
@@ -493,6 +496,7 @@ def run(dev, klass, count, options)
                                   'code' => test.code,
                                   'count' => count,
                                   'result' => result.passed.to_s,
+                                  'runid' => options[:runid],
                                   'status' => result.status.exitstatus.to_s,
                                   'start' => result.start_time.to_s,
                                   'finish' => result.finish_time.to_s,
