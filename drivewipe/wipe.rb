@@ -46,6 +46,9 @@ class Device
     @status = 'Unknown'
     @buff_out = ''
     @buff_err = ''
+    @current_test = nil
+    @test_plan = []
+    @tests = []
 
     @window.mvaddstr(0, 0, '[ ]')
     @window.mvaddstr(0, 4, @name)
@@ -77,7 +80,7 @@ class Device
         raise "Unknown input: '%s'" % line
       end
     end
-    
+
     while (IO.select([@err], nil, nil, 0))
       begin
         @buff_err << @err.read_nonblock(16384)
@@ -88,11 +91,12 @@ class Device
     end
 
     if @started and not @done
-      len = (20 * (@progress / 100)).to_i
+      prg = @current_test['progress']
+      len = (20 * (prg / 100)).to_i
       pbar = '=' * len
       pbar << ' ' * (20 - len)
       @window.mvaddstr(1, 4,
-                       "[%s]%6.2f%% %s" % [pbar, @progress, @test])
+                       "[%s]%6.2f%% %s" % [pbar, prg, @current_test['name']])
     end
 
     if @done
@@ -120,19 +124,35 @@ class Device
       if m = value.match(/^: n'([^']*)' s'([^']*)' c'([^']*)'/)
         @started = true
         @progress = 0
-        @test = m[1]
-        @short = m[2]
+        test = {
+          'name' => m[1],
+          'code' => m[2],
+          'count' => m[3],
+          'progress' => 0,
+          'passed' => nil,
+          'status' => nil
+        }
+
+        @current_test = test
+        @tests << @current_test
+        update_test_plan
+
         @window.move(1, 0)
         @window.clrtobot()
       end
     when 'Result'
       if m = value.match(/^: p'(true|false)' s'(\d+)'/)
+        @current_test['passed'] = (m[1] == 'true')
+        @current_test['status'] = m[2]
+        update_test_plan
       end
     when 'Plan'
-      # Do nothing for now
+      value.slice!(/^:\s+/)
+      @test_plan = value.split(', ')
+      update_test_plan
     when 'Progress'
       if m = value.match(/^:\s+([\d\.]+)%/)
-        @progress = m[1].to_f
+        @current_test['progress'] = m[1].to_f
       end
     when 'Complete'
       if m = value.match(/^: d'([^']*)' r'([^']*)'/)
@@ -146,10 +166,41 @@ class Device
       raise "Unknown input: %s - %s" % [type, value]
     end
   end
+
+  def update_test_plan
+    i = 0
+    if @test_plan
+      @test_plan.each do |t|
+        if not @tests[i].nil?
+          if not @tests[i]['passed'].nil?
+            if @tests[i]['passed']
+              @window.attron(Ncurses.COLOR_PAIR(3))
+            else
+              @window.attron(Ncurses.COLOR_PAIR(2))
+            end
+          else
+            @window.attron(Ncurses.COLOR_PAIR(1) | Ncurses::A_BOLD)
+          end
+          @window.mvaddstr(0, 60 + (i * 3), "#{@tests[i]['code']}")
+          @window.attroff(Ncurses::A_BOLD)
+          @window.attron(Ncurses.COLOR_PAIR(1))
+        else
+          @window.mvaddstr(0, 60 + (i * 3), t)
+        end
+
+        i = i + 1
+      end
+    end
+  end
 end
 
 Ncurses.initscr
+
 begin
+  Ncurses.start_color
+  Ncurses.init_pair(1, Ncurses::COLOR_WHITE, Ncurses::COLOR_BLACK)
+  Ncurses.init_pair(2, Ncurses::COLOR_RED, Ncurses::COLOR_BLACK)
+  Ncurses.init_pair(3, Ncurses::COLOR_GREEN, Ncurses::COLOR_BLACK)
   window = Ncurses::WINDOW.new(24, 80, 0, 0)
   window.box(0, 0)
   window.mvaddstr(0, 1, " FG Drive Wipe ")
