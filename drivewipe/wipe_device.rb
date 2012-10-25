@@ -362,7 +362,8 @@ class SmartTest < BaseTest
 
   def finish
     result = super
-    if (result.failing? or result.prefail? or
+    if (result.identify? or result.checksum? or
+        result.failing? or result.prefail? or
         result.past_prefail? or result.self_log?)
       result.passed = false
     else
