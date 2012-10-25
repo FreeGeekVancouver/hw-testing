@@ -197,10 +197,20 @@ class BadBlocksTest < BaseTest
     super(device)
     @size = size
     @progress = 0
+    @stage_progress = 0
+    @write_patterns = ['random', '0']
+    @stage = 1
   end
 
   def start
-    args = ["/sbin/badblocks", '-t', 'random', '-t', '0', '-ws', @device.path]
+    args = ["/sbin/badblocks"]
+    @write_patterns.each do |p|
+      args << '-t'
+      args << p
+    end
+    args << '-ws'
+    args << @device.path
+
     if not @size.nil?
       args << @size.to_s
     end
@@ -211,7 +221,18 @@ class BadBlocksTest < BaseTest
     super do
         if m = @result.err.match(/(\d+.\d+)% done,/)
           @result.err = ''
-          @progress = m[1].to_f / 100
+
+          # Badblocks reports progress for the current stage,
+          # each write pass is followed by a read pass
+          prog = m[1].to_f / (@write_patterns.count * 200)
+          if prog < @stage_progress
+            @stage = @stage + 1
+          end
+          @stage_progress = prog
+
+          # Specify constants using decimal to allow a non integer result
+          @progress = prog + ((@stage - 1.0) * 
+                              (1.0 / (@write_patterns.count * 2.0)))
         end
     end
   end
