@@ -219,6 +219,12 @@ begin
     a = modal(window, "Expected #{cnt} drives, got #{devs.count}")
   end
 
+  if devs.count > 7
+    modal(window, "Wiping more than 7 devices is not supported")
+    Ncurses.endwin
+    exit(1)
+  end
+
   devices = []
   i = 1
   devs.each do |dev|
@@ -226,9 +232,6 @@ begin
     device = Device.new(dev, win)
     devices.push(device)
     i = i + 1
-    if i > 7
-      raise "Too many devices detected"
-    end
   end
 
   Ncurses.cbreak()
