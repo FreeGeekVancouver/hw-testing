@@ -227,11 +227,16 @@ begin
   window.refresh
 
   devs = drives
-  cnt = modal(window, "Number of drives?").to_i
+  cnt = modal(window, "How many drives are attached?").to_i
   window.refresh
 
   if devs.count != cnt
-    a = modal(window, "Expected #{cnt} drives, got #{devs.count}")
+    a = modal(window, "Expected #{cnt} drives but found #{devs.count} instead." +
+              "  Would you like to continue anyway? (y/N)")
+    if not a.match(/^y/i)
+      Ncurses.endwin()
+      exit(1)
+    end
   end
 
   if devs.count > 7
