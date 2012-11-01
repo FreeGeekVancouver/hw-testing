@@ -9,12 +9,27 @@ require 'open4'
 def modal(window, question)
   width = window.getmaxx
   height = window.getmaxy
-  win = window.subwin(3, 20,
-                      Integer((height / 2) - 2),
-                      Integer((width / 2) - 10))
+  q = question.gsub(/(.{1,#{width - 6}})(\s+|$)/, "\\1\n").strip
+  lines = q.split("\n").count
+  dwidth = lines > 1 ? width - 4 : [(width - 4), q.length + 2].min
+  dheight = lines > 1 ? lines + 3 : 3
+
+  win = window.subwin(dheight, dwidth,
+                      Integer((height / 2) - (dheight / 2)),
+                      Integer((width / 2) - (dwidth / 2)))
   win.box(0, 0)
-  win.mvaddstr(0, 1, question)
-  win.move(1,1)
+  if lines > 1
+    i = 1
+    q.split("\n").map do |l|
+      win.mvaddstr(i, 1, l)
+      i = i + 1
+    end
+    win.move(i, 1)
+  else
+    win.mvaddstr(0, 1, q)
+    win.move(1,1)
+  end
+
   win.refresh()
   str = ''
   win.getstr(str)
