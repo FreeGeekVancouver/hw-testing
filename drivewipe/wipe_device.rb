@@ -509,6 +509,20 @@ def run(dev, klass, count, options)
   return result
 end
 
+def complete(disp, dest, reason)
+  out = "Complete: d'#{disp.to_s.capitalize}' r'#{reason}'"
+  case dest
+  when :destroy
+    out = out + " c'Red' t'Mark with large X for destruction'"
+  when :harvest
+    out = out + " c'Yellow' t'Mark with small H for controller harvest'"
+  when :keep
+    out = out + " c'Green' t'Mark with green dot for reuse'"
+  end
+  puts out
+  exit(0)
+end
+
 result = run(device, SmartTest, '1/?', options)
 
 if result.cmd_line?
@@ -521,23 +535,19 @@ if result.identify? or result.checksum?
 
   result = run(device, BadBlocksTest, '2/4', options)
   if not result.passed
-    puts("Complete: d'Unwiped' r'Badblock failure'")
-    exit(0)
+    complete(:unwiped, :destroy, 'Badblocks failure')
   end
   
   result = run(device, PartitionTest, '3/4', options)
   if not result.passed
-    puts("Complete: d'Wiped' r'Partitioning failure'")
-    exit(0)
+    complete(:wiped, :destroy, 'Partitioning failure')
   end
 
   result = run(device, FormatTest, '4/4', options)
   if result.passed
-    puts("Complete: d'Wiped' r'No errors'")
-    exit(0)
+    complete(:wiped, :keep, 'No errors')
   else
-    puts("Complete: d'Wiped' r'Formatting failure'")
-    exit(0)
+    complete(:wiped, :destroy, 'Formatting failure')
   end
 else
   # The device is SMART capable, test it as such
@@ -545,8 +555,7 @@ else
   if (result.failing? or result.prefail? or
       result.past_prefail? or result.self_log?)
     # Device failed
-    puts("Complete: d'Unwiped' r'SMART Failure'")
-    exit(0)
+    complete(:unwiped, :harvest, 'SMART Failure')
   end
 
   puts("Plan: SM, ST, BB, SM, PT, FM")
@@ -556,37 +565,31 @@ else
     if (result.failing? or result.prefail? or
         result.past_prefail? or result.self_log?)
       # Device failed
-      puts("Complete: d'Unwiped' r'SMART Self-test Failure'")
-      exit(0)
+      complete(:unwiped, :harvest, 'SMART Self-test Failure')
     end
   end
 
   result = run(device, BadBlocksTest, '3/6', options)
   if not result.passed
-    puts("Complete: d'Unwiped' r'Badblock failure'")
-    exit(0)
+    complete(:unwiped, :harvest, 'Badblock failure')
   end
   
   result = run(device, SmartTest, '4/6', options)
   if (result.failing? or result.prefail? or
       result.past_prefail? or result.self_log?)
     # Device failed
-    puts("Complete: d'Wiped' r'SMART Failure'")
-    exit(0)
+    complete(:wiped, :harvest, 'SMART Failure')
   end
 
   result = run(device, PartitionTest, '5/6', options)
   if not result.passed
-    puts("Complete: d'Wiped' r'Partitioning failure'")
-    exit(0)
+    complete(:wiped, :harvest, 'Partitioning failure')
   end
 
   result = run(device, FormatTest, '6/6', options)
   if result.passed
-    puts("Complete: d'Wiped' r'No errors'")
-    exit(0)
+    complete(:wiped, :keep, 'No errors')
   else
-    puts("Complete: d'Wiped' r'Formatting failure'")
-    exit(0)
+    complete(:wiped, :harvest, 'Formatting failure')
   end
 end

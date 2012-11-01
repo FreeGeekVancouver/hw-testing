@@ -115,8 +115,20 @@ class Device
     end
 
     if @done
-      @window.mvaddstr(1, 4,
-                       'Finished: %s because %s' % [@disposition, @reason])
+      c = @complete
+      @window.attron(Ncurses.COLOR_PAIR(1))
+      @window.mvaddstr(1, 4, 'Finished: ')
+      @window.refresh
+      case c[:color]
+      when 'Red'
+        @window.attron(Ncurses.COLOR_PAIR(2))
+      when 'Yellow'
+        @window.attron(Ncurses.COLOR_PAIR(4))
+      when 'Green'
+        @window.attron(Ncurses.COLOR_PAIR(3))
+      end      
+      @window.mvaddstr(1, 15, '%s - %s' % [c[:disposition], c[:destination]])
+      @window.attron(Ncurses.COLOR_PAIR(1))
     end
 
     @window.refresh
@@ -172,9 +184,13 @@ class Device
         @current_test['progress'] = m[1].to_f
       end
     when 'Complete'
-      if m = value.match(/^: d'([^']*)' r'([^']*)'/)
-        @disposition = m[1]
-        @reason = m[2]
+      if m = value.match(/^: d'([^']*)' r'([^']*)' c'([^']*)' t'([^']*)'/)
+        @complete = {
+          :disposition => m[1],
+          :reason => m[2],
+          :color => m[3],
+          :destination => m[4]
+        }
         @done = true
         @window.move(1, 0)
         @window.clrtobot()
@@ -218,6 +234,7 @@ begin
   Ncurses.init_pair(1, Ncurses::COLOR_WHITE, Ncurses::COLOR_BLACK)
   Ncurses.init_pair(2, Ncurses::COLOR_RED, Ncurses::COLOR_BLACK)
   Ncurses.init_pair(3, Ncurses::COLOR_GREEN, Ncurses::COLOR_BLACK)
+  Ncurses.init_pair(4, Ncurses::COLOR_YELLOW, Ncurses::COLOR_BLACK)
   window = Ncurses::WINDOW.new(24, 80, 0, 0)
   window.box(0, 0)
   window.mvaddstr(0, 1, " FG Drive Wipe ")
