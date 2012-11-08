@@ -283,6 +283,8 @@ begin
     ch = window.getch()
     if ch == ?q
       break
+    elsif ch == ?s
+      system '/sbin/poweroff'
     end
   end
 
