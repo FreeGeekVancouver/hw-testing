@@ -1,0 +1,53 @@
+#!/bin/sh
+setterm -powersave off -blank 0
+cd $(dirname $0)
+
+main()
+{
+  . lib/functions
+  DEFAULT="cpuinfo"
+
+  while true; do
+    TEMPFILE=$(mktemp)
+    
+    diag --no-cancel --ok-label "Select" --default-item "$DEFAULT" \
+      --title "Main menu" --menu "Available functions:" \
+      $(($(tput lines) - 4)) $(($(tput cols) - 6)) $(($(tput lines) - 11)) \
+      cpuinfo   "List CPU information" \
+      lspci     "List PCI devices" \
+      lspcmcia  "List PCMCIA devices (for laptops)" \
+      lsusb     "List USB devices" \
+      video     "Dump video card information" \
+      ddcprobe  "Probe video memory" \
+      montest   "Display a test pattern" \
+      time      "Check the time and date" \
+      drivewipe "Wipe and test hard disks" \
+      shell     "Run a shell" \
+      powerdown "Shutdown computer" \
+      reboot    "Reboot computer" \
+      dmesg     "Display boot messages" \
+      adventure "Go on an adventure" \
+      hangman   "Play hangman" \
+      fortune   "Get a fortune" \
+      2> $TEMPFILE
+    RET=$?
+    CHOICE=$(cat "$TEMPFILE")
+    rm "$TEMPFILE"
+
+    if [ $RET != 0 ]; then
+      echo "$CHOICE"
+      read -p "error occured"
+      exec $0
+    fi
+    
+    (cd "$CHOICE" && sh ./run)
+    DEFAULT="$CHOICE"
+  done
+}
+
+if grep drivewipe /proc/cmdline > /dev/null
+then
+  (cd drivewipe && sh ./run)
+else
+  main
+fi

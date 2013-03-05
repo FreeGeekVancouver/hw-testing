@@ -1,0 +1,29 @@
+#!/bin/sh
+
+. ../lib/functions
+
+doit() {
+  i = 0
+  while pgrep lshw; do
+    echo "$i"
+    i=$(($i + 6))
+    sleep 0.5
+  done
+}
+
+output=$(mktemp /tmp/video.XXXXXXXXXX)
+
+echo '### lshw -C video' > $output
+lshw -C video >> $output 2>/dev/null &
+
+doit |   dialog --backtitle "Free Geek Vancouver Test and Diagnostics" \
+  --gauge "Building report" 6 30
+
+businfos=$(grep 'bus info:' $output | cut -d'@' -f2)
+for i in $businfos
+do
+  echo "### lspci -vvvnnm -s $i" >> $output
+  lspci -vvvnnm -s $i >> $output
+done
+
+textbox "Video card information" "$output"

@@ -1,0 +1,7 @@
+#!/bin/sh
+
+clear
+echo "
+Type exit to return to menu...
+"
+/bin/bash

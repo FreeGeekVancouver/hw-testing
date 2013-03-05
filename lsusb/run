@@ -1,0 +1,5 @@
+#!/bin/sh
+
+. ../lib/functions
+
+message "USB Devices" "$(lsusb)"

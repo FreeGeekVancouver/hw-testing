@@ -1,0 +1,4 @@
+#!/bin/sh
+
+/sbin/shutdown -h now
+sleep 10000

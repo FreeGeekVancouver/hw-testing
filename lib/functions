@@ -1,0 +1,22 @@
+#!/bin/sh
+
+diag() {
+  dialog --backtitle "Free Geek Vancouver Test and Diagnostics" \
+    --begin 2 2 "$@"
+}
+
+message() {
+  diag --ok-label "Continue" --title "$1" --msgbox "$2" \
+    $(($(tput lines) - 4)) $(($(tput cols) - 6))
+}
+
+textbox() {
+  diag --exit-label "Continue" --title "$1" --textbox $2 \
+    $(($(tput lines) - 4)) $(($(tput cols) - 6))
+}
+
+pause() {
+  echo "
+Press ENTER to continue."
+  read i
+}

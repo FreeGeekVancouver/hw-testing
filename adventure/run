@@ -1,0 +1,9 @@
+#!/bin/sh
+
+. ../lib/functions
+
+clear
+
+/usr/games/adventure
+
+pause

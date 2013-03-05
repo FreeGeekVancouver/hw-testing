@@ -1,0 +1,9 @@
+#!/bin/sh
+
+. ../lib/functions
+
+FILE=$(mktemp)
+/usr/sbin/ddcprobe | grep -e "memory:\|oem:" > $FILE
+lspci -vvv -s $(lspci | grep VGA | cut -d" " -f1) | grep Region >> $FILE
+
+message "Video memory probe" "$(cat $FILE)"

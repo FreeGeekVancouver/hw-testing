@@ -1,0 +1,5 @@
+#!/bin/sh
+
+. ../lib/functions
+
+message "A fortune" "$(/usr/games/fortune)"
