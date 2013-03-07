@@ -418,7 +418,9 @@ class SmartSelfTest
   def continue
     now = Time.now
     if now < @finish
-      return (now - @start) / @length
+      prog = (now - @start) / @length
+      return prog if prog < 1
+      return 0.99
     end
 
     unless @started
