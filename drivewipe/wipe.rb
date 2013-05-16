@@ -1,15 +1,37 @@
 #!/usr/bin/ruby1.8
 
-# Requires packages:
-# ruby-ncurses smartmontools
+##############################################################################
+## Wipe.rb prompts the user and sets up the text-based user interface.
+## It then looks for drives on the system and starts wipe_device.rb on 
+## each drive, displaying the progress of wipe_device for each drive.
+##
+## Written by Tyler Hamilton, modified by Cecilia Vargas April 2013.
+##############################################################################
 
 require 'ncurses'
 require 'open4'
 
+##############################################################################
+## Prompts user for input and returns user input.
+##############################################################################
+
 def modal(window, question)
+  subwindow = displayMessage(window, question)
+  str = ''
+  subwindow.getstr(str)
+  subwindow.clear
+  subwindow.delwin
+  return str
+end
+
+##############################################################################
+## Displays message in a subwindow of window and returns subwindow.
+##############################################################################
+
+def displayMessage(window, message)
   width = window.getmaxx
   height = window.getmaxy
-  q = question.gsub(/(.{1,#{width - 6}})(\s+|$)/, "\\1\n").strip
+  q = message.gsub(/(.{1,#{width - 6}})(\s+|$)/, "\\1\n").strip
   lines = q.split("\n").count
   dwidth = lines > 1 ? width - 4 : [(width - 4), q.length + 2].min
   dheight = lines > 1 ? lines + 3 : 3
@@ -17,6 +39,7 @@ def modal(window, question)
   win = window.subwin(dheight, dwidth,
                       Integer((height / 2) - (dheight / 2)),
                       Integer((width / 2) - (dwidth / 2)))
+  win.clear  
   win.box(0, 0)
   if lines > 1
     i = 1
@@ -31,13 +54,13 @@ def modal(window, question)
   end
 
   win.refresh()
-  str = ''
-  win.getstr(str)
-  win.clear
-  win.refresh
-  win.delwin
-  return str
-end
+  return win
+end 
+
+##############################################################################
+## Method drives returns an array with all the drives in directory /sys/block,
+## except for 
+##############################################################################
 
 def drives
   devices = Dir.entries('/sys/block')
@@ -45,6 +68,10 @@ def drives
   devices.reject! { |x| x !~ /^[sh]d/}
   return devices
 end
+
+##############################################################################
+## Class Device 
+##############################################################################
 
 class Device
   def initialize(name, window)
@@ -76,8 +103,18 @@ class Device
   def done?
     return @done
   end
+##############################################################################
+## Method update is called at the very end of Device's constructor, and in
+## infinite loop at the very end of the begin block that sets up the 
+## user interface. The loop ends when the user quits.
+##############################################################################
 
   def update
+
+## Read into @buff_out 16KiB (or less) at a time, while data is
+## waiting in @out. To avoid waiting, use read_nonblock instead
+## of the regular read.
+
     while (IO.select([@out], nil, nil, 0))
       begin
         @buff_out << @out.read_nonblock(16384)
@@ -87,6 +124,9 @@ class Device
       end
     end
 
+## Parse update from the program at the other end of @out.
+## Updates are of the form type:data
+
     while idx = @buff_out.index("\n")
       line = @buff_out.slice!(0, idx + 1)
       if i = line.index(':')
@@ -95,6 +135,11 @@ class Device
         raise "Unknown input: '%s'" % line
       end
     end
+
+## wipe.rb and its child wipe_device.rb are connected by pipes,
+## which can only hold so much at once. If wipe_device tries to 
+## write to a full stderr it will block; therefore wipe.rb needs 
+## to read from stderr to allow wipe_device.rb to write to it.
 
     while (IO.select([@err], nil, nil, 0))
       begin
@@ -133,6 +178,20 @@ class Device
 
     @window.refresh
   end
+
+##############################################################################
+## Types:
+##        Device     - blurb on device being wiped
+##        Test       - description of test that is starting
+##        Result     - result of last test
+##        Plan       - list of tests
+##        Progress   - percentage indicator of progress
+##        Complete   - testing is done, final result available
+##
+##
+##    What does value look like?  What is it?
+##
+##############################################################################
 
   private
 
@@ -227,6 +286,13 @@ class Device
   end
 end
 
+##############################################################################
+##
+## Execution starts here. Set up user interface, find drives in system,
+## and wipe each drive, showing how the wiping progresses, until user quits.
+##
+##############################################################################
+
 Ncurses.initscr
 
 begin
@@ -244,6 +310,9 @@ begin
   window.refresh
 
   devs = drives
+## Gather in array devs all the drives in the system, and check
+## that the number of drives found makes sense. 
+
   cnt = modal(window, "How many drives are attached?").to_i
   window.refresh
 
@@ -262,6 +331,9 @@ begin
     exit(1)
   end
 
+## Create an array with Device objects, one for each drive in array devs.
+## The wipe script starts as soon as the  object is created and initialized.
+
   devices = []
   i = 1
   devs.each do |dev|
@@ -270,6 +342,11 @@ begin
     devices.push(device)
     i = i + 1
   end
+
+##
+## Array devices now has all initialized Device objects. Iterate thru
+## it to report how each drive's wiping is progressing until user quits. 
+##
 
   Ncurses.cbreak()
   Ncurses.noecho()
