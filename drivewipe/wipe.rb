@@ -84,8 +84,6 @@ class Device
     @model = 'Unknown'
     @size  = 'Unknown'
     @serial = 'Unknown'
-    @selected = false
-    @status = 'Unknown'
     @buff_out = ''
     @buff_err = ''
     @current_test = nil
@@ -100,9 +98,6 @@ class Device
     self.update()
   end
 
-  def done?
-    return @done
-  end
 ##############################################################################
 ## Method update is called at the very end of Device's constructor, and in
 ## infinite loop at the very end of the begin block that sets up the 
@@ -119,7 +114,6 @@ class Device
       begin
         @buff_out << @out.read_nonblock(16384)
       rescue EOFError
-        o = true
         break
       end
     end
@@ -145,7 +139,6 @@ class Device
       begin
         @buff_err << @err.read_nonblock(16384)
       rescue EOFError
-        e = true
         break
       end
     end
