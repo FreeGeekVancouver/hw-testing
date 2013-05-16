@@ -302,20 +302,35 @@ begin
   window.mvaddstr(0, 65, " UID: %6d " % id)
   window.refresh
 
-  devs = drives
 ## Gather in array devs all the drives in the system, and check
 ## that the number of drives found makes sense. 
 
   cnt = modal(window, "How many drives are attached?").to_i
+  devs = drives
   window.refresh
 
+
   if devs.count != cnt
-    a = modal(window, "Expected #{cnt} drives but found #{devs.count} instead." +
-              "  Would you like to continue anyway? (y/N)")
-    if not a.match(/^y/i)
-      Ncurses.endwin()
-      exit(1)
+    win = displayMessage(window, "Expected #{cnt} drives but found #{devs.count} instead.\n"   +
+                                 "I will sleep a bit in case attached drive(s) not awake yet," + 
+                                 "unless you enter q anytime to quit or c to continue anyway." )
+    devs = drives
+    Ncurses.cbreak()
+    Ncurses.noecho()
+    window.timeout(5000)
+    while devs.count != cnt
+      ch = window.getch()
+      if ch == ?q
+        Ncurses.endwin
+        exit(1)
+      elsif ch == ?c
+        break
+      end
+      devs = drives
     end
+    win.clear
+    win.refresh
+    win.delwin
   end
 
   if devs.count > 7
