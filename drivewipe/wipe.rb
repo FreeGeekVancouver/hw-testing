@@ -12,7 +12,7 @@ require 'ncurses'
 require 'open4'
 
 ##############################################################################
-## Prompts user for input and returns user input.
+## Method modal prompts for and returns user input.
 ##############################################################################
 
 def modal(window, question)
@@ -55,11 +55,13 @@ def displayMessage(window, message)
 
   win.refresh()
   return win
-end 
+end
 
 ##############################################################################
 ## Method drives returns an array with all the drives in directory /sys/block,
-## except for 
+## except for devices which aren't SCSI or IDE hard drives. There are block
+## devices such as loopback mounts (files mounted as a block device) and
+## various RAM devices in that directory that are excluded.
 ##############################################################################
 
 def drives
@@ -70,7 +72,14 @@ def drives
 end
 
 ##############################################################################
-## Class Device 
+## A Device object is a device being wiped. When an object is created the
+## script wipe_device starts running on it.
+## test_plan    is the list of codes of the tests being performed on the device.
+## current_test is a hash with the current test's info like the test name,
+##              start and finish times, progress, status, and whether it passed.
+## tests        is an array of hashes containing all the tests that have been
+##              performed on the device so far, including the current one running.
+##              It is an array of current_test's.
 ##############################################################################
 
 class Device
@@ -99,9 +108,9 @@ class Device
   end
 
 ##############################################################################
-## Method update is called at the very end of Device's constructor, and in
-## infinite loop at the very end of the begin block that sets up the 
-## user interface. The loop ends when the user quits.
+## Method update reads the output of wipe_device.rb, the script actually
+## wiping the device, and reports on how the wiping is progressing or how
+## it all ended.
 ##############################################################################
 
   def update
@@ -173,17 +182,15 @@ class Device
   end
 
 ##############################################################################
+## Method parse parses the output of wipe_device.rb, which is in the format
+## type : value.
 ## Types:
-##        Device     - blurb on device being wiped
+##        Device     - model, serial number, and size of device being wiped
 ##        Test       - description of test that is starting
 ##        Result     - result of last test
 ##        Plan       - list of tests
 ##        Progress   - percentage indicator of progress
 ##        Complete   - testing is done, final result available
-##
-##
-##    What does value look like?  What is it?
-##
 ##############################################################################
 
   private
@@ -252,6 +259,13 @@ class Device
     end
   end
 
+##############################################################################
+## Method update_test_plan updates the on-screen coloring of the test codes,
+## which is usually a string like SM ST BB SM PT FM. It sets the current test
+## to bright, failed tests to red, passed tests to green and pending tests as
+## normal (gray).
+##############################################################################
+
   def update_test_plan
     i = 0
     if @test_plan
@@ -280,12 +294,9 @@ class Device
 end
 
 ##############################################################################
-##
 ## Execution starts here. Set up user interface, find drives in system,
-## and wipe each drive, showing how the wiping progresses, until user quits.
-##
+## and wipe each drive, showing how the wiping progresses.
 ##############################################################################
-
 Ncurses.initscr
 
 begin
@@ -340,7 +351,7 @@ begin
   end
 
 ## Create an array with Device objects, one for each drive in array devs.
-## The wipe script starts as soon as the  object is created and initialized.
+## The wiping script starts as soon as the object is created and initialized.
 
   devices = []
   i = 1
@@ -351,10 +362,8 @@ begin
     i = i + 1
   end
 
-##
 ## Array devices now has all initialized Device objects. Iterate thru
-## it to report how each drive's wiping is progressing until user quits. 
-##
+## it to report how each drive's wiping is progressing.
 
   Ncurses.cbreak()
   Ncurses.noecho()
@@ -372,7 +381,7 @@ begin
       system '/sbin/poweroff'
     end
   end
-
+ 
   Ncurses.endwin
 rescue
   Ncurses.endwin
