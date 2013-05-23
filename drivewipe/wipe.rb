@@ -317,26 +317,34 @@ begin
 ## that the number of drives found makes sense. 
 
   cnt = modal(window, "How many drives are attached?").to_i
-  devs = drives
   window.refresh
+  devs = drives
 
-
-  if devs.count != cnt
-    win = displayMessage(window, "Expected #{cnt} drives but found #{devs.count} instead.\n"   +
-                                 "I will sleep a bit in case attached drive(s) not awake yet," + 
-                                 "unless you enter q anytime to quit or c to continue anyway." )
-    devs = drives
+  if devs.count > cnt
+    win = displayMessage(window, "Detected #{devs.count} drives, but only #{cnt} were expected.\n" +
+                                 "Press any key to wipe the #{devs.count} detected drives, or q to quit." ) 
+    Ncurses.cbreak()
+    Ncurses.noecho()
+    ch = window.getch()
+    if ch == ?q
+      Ncurses.endwin
+      exit(1)
+    else
+      win.clear
+      win.refresh
+      win.delwin
+    end
+  elsif devs.count < cnt
+    win = displayMessage(window, "Detecting drives, #{devs.count} currently found.\n" +
+                                 "Waiting until #{cnt} are found.\n"   +
+                                 "Press c to wipe currently found drives." ) 
     Ncurses.cbreak()
     Ncurses.noecho()
     window.timeout(5000)
+    devs = drives
     while devs.count != cnt
       ch = window.getch()
-      if ch == ?q
-        Ncurses.endwin
-        exit(1)
-      elsif ch == ?c
-        break
-      end
+      break if ch == ?c
       devs = drives
     end
     win.clear
