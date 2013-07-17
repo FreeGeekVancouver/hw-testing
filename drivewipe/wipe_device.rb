@@ -527,11 +527,8 @@ end
 
 result = run(device, SmartTest, '1/?', options)
 
-if result.cmd_line?
-  raise "SMART Command line error"
-end
 
-if result.identify? or result.checksum?
+if result.identify? or result.checksum? or result.cmd_line?
   # Assume the device is not smart capable
   puts("Plan: SM, BB, PT, FM")
 
